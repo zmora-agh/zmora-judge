@@ -19,10 +19,14 @@ library
   other-modules:       Json
                      , Models
                      , ZeroMQ
+                     , Compiler
   build-depends:       base >= 4.7 && < 5
                      , zeromq4-haskell
                      , bytestring
                      , aeson
+                     , process
+                     , temporary
+                     , filepath
   default-language:    Haskell2010
 
 executable zmora-judge
