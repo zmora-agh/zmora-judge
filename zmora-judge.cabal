@@ -10,7 +10,6 @@ maintainer:          example@example.com
 copyright:           zmora-agh
 category:            Web
 build-type:          Simple
-extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
@@ -20,6 +19,7 @@ library
                      , Models
                      , ZeroMQ
                      , Compiler
+                     , Jail
   build-depends:       base >= 4.7 && < 5
                      , zeromq4-haskell
                      , bytestring
@@ -29,6 +29,7 @@ library
                      , filepath
                      , transformers
                      , directory
+                     , lens
   default-language:    Haskell2010
 
 executable zmora-judge

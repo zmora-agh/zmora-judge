@@ -6,8 +6,10 @@ import ZeroMQ
 import Json
 import Models
 import Compiler
+import Jail
 import System.Directory
-
+import System.Exit
+import System.IO
 import System.IO.Temp
 
 startWorker :: IO ()
@@ -21,16 +23,23 @@ processTask task = withSystemTempDirectory "zmora-judge" $ \directory -> do
 
 fromRight (Right a) = a
 
+save :: FilePath -> Source -> IO ()
+save = writeFile
 
 
 exampleProblemJudge :: Source -> IO TaskResult
 exampleProblemJudge input = do
---     save input "source.c"
+    save "source.c" input
 
-    result <- withCompiler (defaultPreset :: GCC) $ do
+    compile <- withCompiler (defaultPreset :: GCC) $ do
         blacklist "/usr/include/X11"
         compile "source.c" "a.out"
 
-    return $ case result of
-        CompilationOK -> TaskResult "Success"
-        CompilationError error -> TaskResult error
+    print compile
+
+    result <- withJail $ do
+        setRamLimit $ RLimit 10
+        setCpuLimit $ RLimit 1
+        run "./a.out" []
+
+    return $ TaskResult $ show result

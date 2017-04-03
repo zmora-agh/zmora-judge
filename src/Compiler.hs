@@ -31,7 +31,7 @@ class Compiler c m where
 instance MonadIO m => Compiler GCC m where
   compile src out = do
     config <- get
-    let args = [src, "-o", out, optimisation config]
+    let args = [src, "--static", "-o", out, optimisation config]
     result <- liftIO $ readProcessWithExitCode (gccPath config) args ""
     return $ case result of
       (ExitSuccess, _, _) -> CompilationOK
