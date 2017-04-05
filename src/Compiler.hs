@@ -1,40 +1,52 @@
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FlexibleInstances      #-}
+
 module Compiler where
 
-import Models
-
-import System.Process
-import System.IO
-import System.FilePath
+import Control.Monad.Trans.State.Lazy
+import Control.Monad.IO.Class
 import System.Exit
+import System.Process
+import Data.List (delete)
 
-t = Task 32 "#include <stdio.h> \n void main() { printf(\"szatan\"); }" C
+data CompilationStatus = CompilationOK | CompilationError String deriving Show
 
-r task = compile task "/tmp/zmora"
+type CompileT c m = StateT c m CompilationStatus
 
-compile :: Task -> FilePath -> IO (Either String Program)
-compile task path = do
-    let config = getCompilerConfig $ language task
-    result <- compile' config (source task) outputFile
+data GCC = GCC { gccPath :: String
+               , optimisation :: String
+               , includes :: [String]
+               } deriving Show
+
+class HasDefaultPreset a where
+  defaultPreset :: a
+
+instance HasDefaultPreset GCC where
+  defaultPreset = GCC "/usr/bin/gcc" "-O2" ["/usr/include", "/usr/include/X11"]
+
+class Compiler c m where
+  compile :: FilePath -> FilePath -> CompileT c m
+  blacklist :: String -> StateT c m ()
+
+instance MonadIO m => Compiler GCC m where
+  compile src out = do
+    config <- get
+    let args = [src, "--static", "-o", out, optimisation config]
+    result <- liftIO $ readProcessWithExitCode (gccPath config) args ""
     return $ case result of
-        Nothing -> Right outputFile
-        Just error -> Left error
-    where outputFile = path </> "output"
+      (ExitSuccess, _, _) -> CompilationOK
+      (_, _, error) -> CompilationError error
 
-compile' :: CompilerConfig -> Source -> FilePath -> IO (Maybe String)
-compile' config src out = do
-    let input = parseCompilerParam src out (Models.stdin config)
-    args <- return $ parseCompilerParam src out <$> args config
-    result <- readProcessWithExitCode (compiler config) args input
-    return $ case result of
-        (ExitSuccess, _, _) -> Nothing
-        (_, _, error) -> Just error
+  blacklist x = modify $ \(GCC p opt incl) -> GCC p opt (delete x incl)
 
+withCompiler :: Functor f => a -> StateT a f b -> f b
+withCompiler compiler procedure = fst <$> runStateT procedure compiler
 
-parseCompilerParam :: Source -> FilePath -> CompilerParam -> String
-parseCompilerParam _ _ (Param p) = p
-parseCompilerParam src _ SourceCode = src
-parseCompilerParam _ outPath OutputFile = outPath
+main :: IO ()
+main = do
+--  save input "source.c"
+  resultGCC <- withCompiler (defaultPreset :: GCC) $ do
+    blacklist "/usr/include/X11"
+    compile "source.c" "a.out"
 
-getCompilerConfig :: Language -> CompilerConfig
-getCompilerConfig C = CompilerConfig "gcc" ((Param <$> ["-xc", "-", "-o"]) ++ [OutputFile]) SourceCode
-getCompilerConfig CPP = CompilerConfig "g++" ((Param <$> ["-xc++", "-", "-o"]) ++ [OutputFile]) SourceCode
+  print resultGCC
