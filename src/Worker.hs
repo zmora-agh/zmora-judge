@@ -2,23 +2,35 @@
 
 module Worker where
 
-import ZeroMQ
-import Json
-import Models
-import Compiler
-import Jail
-import System.Directory
-import System.Exit
-import System.IO
-import System.IO.Temp
+import           Compiler
+import qualified Data.ByteString.Lazy as B
+import           Data.MessagePack
+import           Jail
+import           Models
+import           RabbitMQ
+import           System.Directory
+import           System.Exit
+import           System.IO
+import           System.IO.Temp
+import Numeric (showHex)
+
 
 startWorker :: IO ()
-startWorker = start0MQWorker $ parseTask processTask
+startWorker = startRabbitMQWorker processTask
 
-processTask :: Task -> IO TaskResult
-processTask task = withSystemTempDirectory "zmora-judge" $ \directory -> do
+prettyPrint :: B.ByteString -> String
+prettyPrint = concat . map (flip showHex "") . B.unpack
+
+processTask :: B.ByteString -> IO B.ByteString
+processTask rawTask = withSystemTempDirectory "zmora-judge" $ \directory -> do
+    let test = pack $ Task 5 "dupa" [File "source.c" "void main(){}"] []
+    putStrLn $ prettyPrint test
+    putStrLn $ prettyPrint rawTask
+    task <- unpack rawTask
+    print task
     setCurrentDirectory directory
-    exampleProblemJudge $ source task
+    result <- exampleProblemJudge $ task
+    return $ pack result
 
 
 fromRight (Right a) = a
@@ -27,9 +39,9 @@ save :: FilePath -> Source -> IO ()
 save = writeFile
 
 
-exampleProblemJudge :: Source -> IO TaskResult
-exampleProblemJudge input = do
-    save "source.c" input
+exampleProblemJudge :: Task -> IO TaskResult
+exampleProblemJudge task = do
+--    save "source.c" task
 
     compile <- withCompiler (defaultPreset :: GCC) $ do
         blacklist "/usr/include/X11"
@@ -42,4 +54,4 @@ exampleProblemJudge input = do
         setCpuLimit $ RLimit 1
         run "./a.out" []
 
-    return $ TaskResult $ show result
+    return $ TaskResult { resultId = 15, compilationLog = "", testResults = [] }

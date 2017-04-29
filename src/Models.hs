@@ -1,10 +1,12 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric  #-}
 
 module Models where
 
-import Data.Int (Int64)
-import GHC.Generics
-import Data.Aeson
+import qualified Data.ByteString.Lazy as B
+import           Data.Int             (Int64)
+import           Data.MessagePack
+import           GHC.Generics
 
 type Source = String
 
@@ -14,19 +16,48 @@ data CompilerParam = Param String | OutputFile | SourceCode deriving(Show)
 
 data CompilerConfig = CompilerConfig {
     compiler :: FilePath,
-    args :: [CompilerParam],
-    stdin :: CompilerParam
+    args     :: [CompilerParam],
+    stdin    :: CompilerParam
 } deriving(Show)
 
-data Language = C | CPP deriving (Show, Generic, FromJSON)
-
 data Task = Task {
-    id :: Int,
-    source :: Source,
-    language :: Language
-} deriving (Show, Generic, FromJSON)
+    taskId        :: Int,
+    configuration :: String,
+    files         :: [File],
+    tests         :: [Test]
+} deriving (Show, Generic)
 
-newtype TaskResult = TaskResult {
-    result :: String
-} deriving (Show, Generic, ToJSON)
+instance MessagePack Task
 
+data File = File {
+  name    :: String,
+  content :: B.ByteString
+} deriving (Show, Generic)
+
+instance MessagePack File
+
+
+data Test = Test {
+  input     :: B.ByteString,
+  output    :: B.ByteString,
+  timeLimit :: Int,
+  ramLimit  :: Int
+} deriving (Show, Generic)
+
+instance MessagePack Test
+
+data TaskResult = TaskResult {
+  resultId       :: Int,
+  compilationLog :: String,
+  testResults    :: [TestResult]
+} deriving (Show, Generic)
+
+instance MessagePack TaskResult
+
+data TestResult = TestResult {
+  passed        :: Bool,
+  executionTime :: Int,
+  ramUsage      :: Int
+} deriving (Show, Generic)
+
+instance MessagePack TestResult

@@ -1,21 +1,21 @@
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Compiler where
 
-import Control.Monad.Trans.State.Lazy
-import Control.Monad.IO.Class
-import System.Exit
-import System.Process
-import Data.List (delete)
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.State.Lazy
+import           Data.List                      (delete)
+import           System.Exit
+import           System.Process
 
 data CompilationStatus = CompilationOK | CompilationError String deriving Show
 
 type CompileT c m = StateT c m CompilationStatus
 
-data GCC = GCC { gccPath :: String
+data GCC = GCC { gccPath      :: String
                , optimisation :: String
-               , includes :: [String]
+               , includes     :: [String]
                } deriving Show
 
 class HasDefaultPreset a where
@@ -35,7 +35,7 @@ instance MonadIO m => Compiler GCC m where
     result <- liftIO $ readProcessWithExitCode (gccPath config) args ""
     return $ case result of
       (ExitSuccess, _, _) -> CompilationOK
-      (_, _, error) -> CompilationError error
+      (_, _, error)       -> CompilationError error
 
   blacklist x = modify $ \(GCC p opt incl) -> GCC p opt (delete x incl)
 

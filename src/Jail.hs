@@ -1,20 +1,20 @@
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Jail (withJail, setRamLimit, setCpuLimit, run, RLimit(..)) where
 
-import Control.Monad.Trans.State.Lazy
-import Control.Monad.IO.Class
-import System.Exit
-import System.Process
-import System.Directory
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.State.Lazy
+import           System.Directory
+import           System.Exit
+import           System.Process
 
 data RLimit = RUnlimited | RDefault | RLimit Int deriving Show
 
 data NsJail = NsJail {
-    jailPath :: FilePath,
-    ramLimit :: RLimit,
-    cpuLimit :: RLimit,
+    jailPath  :: FilePath,
+    ramLimit  :: RLimit,
+    cpuLimit  :: RLimit,
     chrootDir :: String
 } deriving Show
 
@@ -45,8 +45,8 @@ instance MonadIO m => Jail NsJail m where
 
 rlimitString :: RLimit -> String
 rlimitString rlimit = case rlimit of
-    RUnlimited -> "max"
-    RDefault -> "def"
+    RUnlimited   -> "max"
+    RDefault     -> "def"
     RLimit value -> show value
 
 withJail :: StateT NsJail IO a -> IO a
