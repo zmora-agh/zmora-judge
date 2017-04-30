@@ -3,7 +3,7 @@
 
 module Compiler where
 
-import           Configuration
+import qualified Configuration as C
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.State.Lazy
 import           Data.List                      (delete)
@@ -23,7 +23,7 @@ class HasDefaultPreset a where
   defaultPreset :: a
 
 instance HasDefaultPreset GCC where
-  defaultPreset = GCC gccPath "-O2" ["/usr/include", "/usr/include/X11"]
+  defaultPreset = GCC C.gccPath "-O2" ["/usr/include", "/usr/include/X11"]
 
 class Compiler c m where
   compile :: FilePath -> FilePath -> CompileT c m

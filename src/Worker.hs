@@ -12,42 +12,42 @@ import           System.Directory
 import           System.Exit
 import           System.IO
 import           System.IO.Temp
-import Numeric (showHex)
 
 
 startWorker :: IO ()
 startWorker = startRabbitMQWorker processTask
 
-prettyPrint :: B.ByteString -> String
-prettyPrint = concat . map (flip showHex "") . B.unpack
-
 processTask :: B.ByteString -> IO B.ByteString
 processTask rawTask = withSystemTempDirectory "zmora-judge" $ \directory -> do
-    task <- unpack rawTask
-    setCurrentDirectory directory
-    result <- exampleProblemJudge $ task
-    return $ pack result
+  task <- unpack rawTask
+  setCurrentDirectory directory
+  testsResults <- exampleProblemJudge (files task) (tests task)
+  let result = TaskResult 15 "" testsResults
+  return $ pack result
 
 
 fromRight (Right a) = a
 
-save :: FilePath -> Source -> IO ()
-save = writeFile
+save :: File -> IO ()
+save file = B.writeFile (name file) (content file)
 
+saveAll :: [File] -> IO ()
+saveAll = mapM_ save
 
-exampleProblemJudge :: Task -> IO TaskResult
-exampleProblemJudge task = do
---    save "source.c" task
+foreach :: (Traversable t, Monad m) => t a -> (a -> m b) -> m (t b)
+foreach = flip mapM
 
-    compile <- withCompiler (defaultPreset :: GCC) $ do
-        blacklist "/usr/include/X11"
-        compile "source.c" "a.out"
+exampleProblemJudge :: [File] -> [Test] -> IO [TestResult]
+exampleProblemJudge files tests = do
+  saveAll $ files
 
-    print compile
+  compile <- withCompiler (defaultPreset :: GCC) $ do
+    compile "source.c" "a.out"
 
-    result <- withJail $ do
-        setRamLimit $ RLimit 10
-        setCpuLimit $ RLimit 1
-        run "./a.out" []
-
-    return $ TaskResult { resultId = 15, compilationLog = "", testResults = [] }
+  --TODO redo interface for running test
+  foreach tests $ \test -> withJail $ do
+    (_, out, _) <- run "./a.out" [] $ input test
+    status <- if out == output test
+      then return OK
+      else return ANS
+    return $ TestResult status 0 0

@@ -30,19 +30,19 @@ instance HasDefaultPreset NsJail where
 class Jail j m where
     setRamLimit :: RLimit -> StateT j m ()
     setCpuLimit :: RLimit -> StateT j m ()
-    run :: FilePath -> [String] -> StateT j m (ExitCode, String, String)
+    run :: FilePath -> [String] -> String -> StateT j m (ExitCode, String, String)
 
 instance MonadIO m => Jail NsJail m where
     setRamLimit ram =  modify $ \j -> j {ramLimit = ram}
     setCpuLimit cpu =  modify $ \j -> j {cpuLimit = cpu}
 
-    run program args = do
+    run program args input = do
         j <- get
         let nsArgs = [ "--chroot", chrootDir j
                      , "--rlimit_as", rlimitString $ ramLimit j
                      , "--rlimit_cpu", rlimitString $ cpuLimit j
                      , "--", program ] ++ args
-        liftIO $ readProcessWithExitCode (jailPath j) nsArgs ""
+        liftIO $ readProcessWithExitCode (jailPath j) nsArgs input
 
 rlimitString :: RLimit -> String
 rlimitString rlimit = case rlimit of
@@ -54,15 +54,3 @@ withJail :: StateT NsJail IO a -> IO a
 withJail proc = do
     preset <- defaultPreset :: IO NsJail
     evalStateT proc preset
-
-main :: IO ()
-main = do
-    res <- withJail $ do
-        setRamLimit $ RLimit 10
-        run "a.out" []
-
-    print res
-    return ()
-
-
-

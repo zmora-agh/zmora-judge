@@ -38,8 +38,8 @@ instance MessagePack File
 
 
 data Test = Test {
-  input     :: B.ByteString,
-  output    :: B.ByteString,
+  input     :: String,
+  output    :: String,
   timeLimit :: Int,
   ramLimit  :: Int
 } deriving (Show, Generic)
@@ -55,9 +55,13 @@ data TaskResult = TaskResult {
 instance MessagePack TaskResult
 
 data TestResult = TestResult {
-  passed        :: Bool,
+  status        :: Status,
   executionTime :: Int,
   ramUsage      :: Int
 } deriving (Show, Generic)
 
 instance MessagePack TestResult
+
+data Status = OK | RTE | MEM | TLE | ANS | CME deriving (Show, Generic)
+
+instance MessagePack Status
