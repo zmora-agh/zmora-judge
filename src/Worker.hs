@@ -23,11 +23,7 @@ prettyPrint = concat . map (flip showHex "") . B.unpack
 
 processTask :: B.ByteString -> IO B.ByteString
 processTask rawTask = withSystemTempDirectory "zmora-judge" $ \directory -> do
-    let test = pack $ Task 5 "dupa" [File "source.c" "void main(){}"] []
-    putStrLn $ prettyPrint test
-    putStrLn $ prettyPrint rawTask
     task <- unpack rawTask
-    print task
     setCurrentDirectory directory
     result <- exampleProblemJudge $ task
     return $ pack result

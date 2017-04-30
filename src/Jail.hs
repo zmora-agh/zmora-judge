@@ -3,6 +3,7 @@
 
 module Jail (withJail, setRamLimit, setCpuLimit, run, RLimit(..)) where
 
+import           Configuration
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.State.Lazy
 import           System.Directory
@@ -24,7 +25,7 @@ class HasDefaultPreset a where
 instance HasDefaultPreset NsJail where
   defaultPreset = do
     cwd <- getCurrentDirectory
-    return $ NsJail "/home/maxmati/src/foss/nsjail/nsjail" RDefault RDefault cwd
+    return $ NsJail nsJailPath RDefault RDefault cwd
 
 class Jail j m where
     setRamLimit :: RLimit -> StateT j m ()

@@ -3,6 +3,7 @@
 
 module Compiler where
 
+import           Configuration
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.State.Lazy
 import           Data.List                      (delete)
@@ -22,7 +23,7 @@ class HasDefaultPreset a where
   defaultPreset :: a
 
 instance HasDefaultPreset GCC where
-  defaultPreset = GCC "/usr/bin/gcc" "-O2" ["/usr/include", "/usr/include/X11"]
+  defaultPreset = GCC gccPath "-O2" ["/usr/include", "/usr/include/X11"]
 
 class Compiler c m where
   compile :: FilePath -> FilePath -> CompileT c m
@@ -41,12 +42,3 @@ instance MonadIO m => Compiler GCC m where
 
 withCompiler :: Functor f => a -> StateT a f b -> f b
 withCompiler compiler procedure = fst <$> runStateT procedure compiler
-
-main :: IO ()
-main = do
---  save input "source.c"
-  resultGCC <- withCompiler (defaultPreset :: GCC) $ do
-    blacklist "/usr/include/X11"
-    compile "source.c" "a.out"
-
-  print resultGCC

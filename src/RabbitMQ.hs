@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module RabbitMQ ( startRabbitMQWorker ) where
 
+import           Configuration
 import qualified Data.ByteString.Lazy as B
 import           Network.AMQP
 
@@ -9,7 +10,7 @@ tasksResultsQueueName = "tasksResults"
 
 startRabbitMQWorker :: (B.ByteString -> IO B.ByteString) -> IO ()
 startRabbitMQWorker executor = do
-  connection <- openConnection "127.0.0.1" "/" "guest" "guest"
+  connection <- openConnection'' rabbitMQConnectionOpts
 
   receiveChannell <- openChannel connection
   qos receiveChannell 0 1 False
@@ -27,9 +28,7 @@ startRabbitMQWorker executor = do
 
 processMsg :: Channel -> (B.ByteString -> IO B.ByteString) -> (Message, Envelope) -> IO ()
 processMsg channel executor (msg, env) = do
-  putStrLn "asdf"
   let body = msgBody msg
-  B.putStrLn body
 
   result <- executor body
   --TODO redo it using new thread

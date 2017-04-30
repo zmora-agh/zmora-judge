@@ -16,6 +16,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Worker
   other-modules:       Models
+                     , Configuration
                      , Compiler
                      , Jail
                      , RabbitMQ
