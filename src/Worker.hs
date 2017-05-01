@@ -22,6 +22,7 @@ processTask rawTask = withSystemTempDirectory "zmora-judge" $ \directory -> do
   task <- unpack rawTask
   setCurrentDirectory directory
   testsResults <- exampleProblemJudge (files task) (tests task)
+  print testsResults
   let result = TaskResult 15 "" testsResults
   return $ pack result
 

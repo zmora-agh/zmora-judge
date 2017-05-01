@@ -2,35 +2,59 @@
 module RabbitMQ ( startRabbitMQWorker ) where
 
 import           Configuration
-import qualified Data.ByteString.Lazy as B
+import           Control.Concurrent.STM
+import           Control.Exception
+import           Control.Monad
+import qualified Data.ByteString.Lazy   as B
+import qualified Data.Text              as T
 import           Network.AMQP
 
 tasksQueueName = "tasks"
+tasksErrorsQueueName = "tasksErrors"
 tasksResultsQueueName = "tasksResults"
+
+type RabbitMsg = (Message, Envelope)
+type RabbitResponseFor = (Either RawTask RawTaskResult, Envelope)
+type RawTask = B.ByteString
+type RawTaskResult = B.ByteString
 
 startRabbitMQWorker :: (B.ByteString -> IO B.ByteString) -> IO ()
 startRabbitMQWorker executor = do
   connection <- openConnection'' rabbitMQConnectionOpts
 
-  receiveChannell <- openChannel connection
-  qos receiveChannell 0 1 False
-  declareQueue receiveChannell newQueue {queueName = tasksQueueName}
+  channel <- openChannel connection
+  qos channel 0 1 False
+  declareQueues channel [tasksQueueName, tasksResultsQueueName, tasksErrorsQueueName]
 
-  sendingChannell <- openChannel connection
-  declareQueue sendingChannell newQueue {queueName = tasksResultsQueueName}
+  responseQueue <- atomically $ newTQueue
 
-  consumeMsgs receiveChannell tasksQueueName Ack $
-    processMsg sendingChannell executor
+  consumeMsgs channel tasksQueueName Ack $
+    processMsg responseQueue executor
+
+  forever $ do
+    response <- atomically $ readTQueue responseQueue
+    processResponse channel response
 
   putStrLn "Press any key to exit."
   getLine
   closeConnection connection
 
-processMsg :: Channel -> (B.ByteString -> IO B.ByteString) -> (Message, Envelope) -> IO ()
-processMsg channel executor (msg, env) = do
-  let body = msgBody msg
+declareQueues :: Channel -> [T.Text] -> IO ()
+declareQueues channel = mapM_ (\n -> declareQueue channel newQueue{queueName = n})
 
-  result <- executor body
-  --TODO redo it using new thread
-  publishMsg channel "" tasksResultsQueueName newMsg { msgBody = result }
-  ackEnv env
+processResponse :: Channel -> RabbitResponseFor -> IO ()
+processResponse channel (Right result, env) = do
+    publishMsg channel "" tasksResultsQueueName newMsg {msgBody = result}
+    ackEnv env
+processResponse channel (Left task, env) = do
+    publishMsg channel "" tasksErrorsQueueName newMsg {msgBody = task}
+    rejectEnv env False
+
+processMsg :: TQueue RabbitResponseFor -> (RawTask -> IO RawTaskResult) -> RabbitMsg -> IO ()
+processMsg queue executor (msg, env) = do
+  let body = msgBody msg
+  result <- catch (Right <$> executor body) $ \e -> do
+    print (e :: SomeException)
+    return $ Left body
+  atomically $ writeTQueue queue $! (result, env)
+
