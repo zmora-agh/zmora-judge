@@ -33,6 +33,7 @@ library
                      , lens
                      , stm
                      , text
+                     , zmora-queue
   default-language:    Haskell2010
 
 executable zmora-judge

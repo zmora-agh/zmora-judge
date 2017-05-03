@@ -35,8 +35,6 @@ startRabbitMQWorker executor = do
     response <- atomically $ readTQueue responseQueue
     processResponse channel response
 
-  putStrLn "Press any key to exit."
-  getLine
   closeConnection connection
 
 declareQueues :: Channel -> [T.Text] -> IO ()
