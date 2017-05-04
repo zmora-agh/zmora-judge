@@ -37,8 +37,9 @@ exampleProblemJudge :: [File] -> [Test] -> IO [TestResult]
 exampleProblemJudge files tests = do
   saveAll files
 
+  let filenames = T.unpack . name <$> files
   compile <- withCompiler (defaultPreset :: GCC) $
-    compile "source.c" "a.out"
+    compile filenames "a.out"
 
   --TODO redo interface for running test
   forM tests $ \test -> withJail $ do

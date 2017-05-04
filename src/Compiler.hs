@@ -3,11 +3,12 @@
 
 module Compiler where
 
-import qualified Configuration as C
+import qualified Configuration                  as C
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.State.Lazy
 import           Data.List                      (delete)
 import           System.Exit
+import           System.FilePath.Posix          (takeExtension)
 import           System.Process
 
 data CompilationStatus = CompilationOK | CompilationError String deriving Show
@@ -26,13 +27,14 @@ instance HasDefaultPreset GCC where
   defaultPreset = GCC C.gccPath "-O2" ["/usr/include", "/usr/include/X11"]
 
 class Compiler c m where
-  compile :: FilePath -> FilePath -> CompileT c m
+  compile :: [FilePath] -> FilePath -> CompileT c m
   blacklist :: String -> StateT c m ()
 
 instance MonadIO m => Compiler GCC m where
   compile src out = do
     config <- get
-    let args = [src, "--static", "-o", out, optimisation config]
+    let sources = filter (\filename -> takeExtension filename == ".c") src
+    let args = sources ++ ["--static", "-o", out, optimisation config]
     result <- liftIO $ readProcessWithExitCode (gccPath config) args ""
     return $ case result of
       (ExitSuccess, _, _) -> CompilationOK
