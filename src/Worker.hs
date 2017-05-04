@@ -43,8 +43,8 @@ exampleProblemJudge files tests = do
 
   --TODO redo interface for running test
   forM tests $ \test -> withJail $ do
-    (_, out, _) <- run "./a.out" [] $ input test
-    status <- if out == output test
+    (_, out, _) <- run "./a.out" [] $ T.unpack . input $ test
+    status <- if out == (T.unpack . output) test
       then return OK
       else return ANS
     return $ TestResult status 0 0
