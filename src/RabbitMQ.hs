@@ -6,7 +6,7 @@ import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Monad
 import qualified Data.ByteString.Lazy   as B
-import qualified Data.Text              as T
+import           Data.Maybe             (maybe)
 import           Network.AMQP
 import           Zmora.AMQP
 
@@ -15,9 +15,14 @@ type RabbitResponseFor = (Either RawTask RawTaskResult, Envelope)
 type RawTask = B.ByteString
 type RawTaskResult = B.ByteString
 
-startRabbitMQWorker :: (B.ByteString -> IO B.ByteString) -> IO ()
-startRabbitMQWorker executor = do
-  connection <- openConnection'' rabbitMQConnectionOpts
+startRabbitMQWorker :: Maybe String -> (B.ByteString -> IO B.ByteString) -> IO ()
+startRabbitMQWorker uri executor = do
+  putStrLn $ "Broker URI: " ++
+    maybe "default"
+          (\u -> show u ++ " (defaults used for missing parameters)")
+          uri
+  let connOpts = maybe rabbitMQConnectionOpts fromURI uri
+  connection <- openConnection'' connOpts
 
   channel <- openChannel connection
   qos channel 0 1 False

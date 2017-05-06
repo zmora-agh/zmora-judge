@@ -13,8 +13,8 @@ import           System.Directory
 import           System.IO.Temp
 import           Zmora.Queue
 
-startWorker :: IO ()
-startWorker = startRabbitMQWorker processTask
+startWorker :: (Maybe String) -> IO ()
+startWorker uri = startRabbitMQWorker uri processTask
 
 processTask :: B.ByteString -> IO B.ByteString
 processTask rawTask = withSystemTempDirectory "zmora-judge" $ \directory -> do
