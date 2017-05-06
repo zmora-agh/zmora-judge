@@ -37,6 +37,10 @@ resolver: lts-8.5
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
+- location:
+    git: https://github.com/zmora-agh/zmora-queue.git
+    commit: 6bb5cc45ffb139f1f5288c675cfc8a2e49d3396f
+  extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps: []

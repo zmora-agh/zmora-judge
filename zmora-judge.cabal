@@ -15,21 +15,24 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Worker
-  other-modules:       Json
-                     , Models
-                     , ZeroMQ
+  other-modules:       Models
+                     , Configuration
                      , Compiler
                      , Jail
+                     , RabbitMQ
   build-depends:       base >= 4.7 && < 5
-                     , zeromq4-haskell
+                     , amqp
                      , bytestring
-                     , aeson
-                     , process
-                     , temporary
-                     , filepath
-                     , transformers
+                     , data-msgpack
                      , directory
+                     , filepath
                      , lens
+                     , process
+                     , stm
+                     , temporary
+                     , transformers
+                     , text
+                     , zmora-queue
   default-language:    Haskell2010
 
 executable zmora-judge

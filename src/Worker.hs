@@ -2,44 +2,49 @@
 
 module Worker where
 
-import ZeroMQ
-import Json
-import Models
-import Compiler
-import Jail
-import System.Directory
-import System.Exit
-import System.IO
-import System.IO.Temp
+import           Control.Monad (forM)
+import           Compiler
+import qualified Data.ByteString.Lazy as B
+import qualified Data.Text as T
+import           Data.MessagePack
+import           Jail
+import           RabbitMQ
+import           System.Directory
+import           System.IO.Temp
+import           Zmora.Queue
 
 startWorker :: IO ()
-startWorker = start0MQWorker $ parseTask processTask
+startWorker = startRabbitMQWorker processTask
 
-processTask :: Task -> IO TaskResult
-processTask task = withSystemTempDirectory "zmora-judge" $ \directory -> do
-    setCurrentDirectory directory
-    exampleProblemJudge $ source task
-
+processTask :: B.ByteString -> IO B.ByteString
+processTask rawTask = withSystemTempDirectory "zmora-judge" $ \directory -> do
+  task <- unpack rawTask
+  setCurrentDirectory directory
+  testsResults <- exampleProblemJudge (files task) (tests task)
+  print testsResults
+  let result = TaskResult (taskId task) "" testsResults
+  return $ pack result
 
 fromRight (Right a) = a
 
-save :: FilePath -> Source -> IO ()
-save = writeFile
+save :: File -> IO ()
+save file = B.writeFile (T.unpack . name $ file) (content file)
 
+saveAll :: [File] -> IO ()
+saveAll = mapM_ save
 
-exampleProblemJudge :: Source -> IO TaskResult
-exampleProblemJudge input = do
-    save "source.c" input
+exampleProblemJudge :: [File] -> [Test] -> IO [TestResult]
+exampleProblemJudge files tests = do
+  saveAll files
 
-    compile <- withCompiler (defaultPreset :: GCC) $ do
-        blacklist "/usr/include/X11"
-        compile "source.c" "a.out"
+  let filenames = T.unpack . name <$> files
+  compile <- withCompiler (defaultPreset :: GCC) $
+    compile filenames "a.out"
 
-    print compile
-
-    result <- withJail $ do
-        setRamLimit $ RLimit 10
-        setCpuLimit $ RLimit 1
-        run "./a.out" []
-
-    return $ TaskResult $ show result
+  --TODO redo interface for running test
+  forM tests $ \test -> withJail $ do
+    (_, out, _) <- run "./a.out" [] $ T.unpack . input $ test
+    status <- if out == (T.unpack . output) test
+      then return OK
+      else return ANS
+    return $ TestResult status 0 0
