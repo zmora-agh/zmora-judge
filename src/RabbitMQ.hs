@@ -8,10 +8,7 @@ import           Control.Monad
 import qualified Data.ByteString.Lazy   as B
 import qualified Data.Text              as T
 import           Network.AMQP
-
-tasksQueueName = "tasks"
-tasksErrorsQueueName = "tasksErrors"
-tasksResultsQueueName = "tasksResults"
+import           Zmora.AMQP
 
 type RabbitMsg = (Message, Envelope)
 type RabbitResponseFor = (Either RawTask RawTaskResult, Envelope)
@@ -24,11 +21,11 @@ startRabbitMQWorker executor = do
 
   channel <- openChannel connection
   qos channel 0 1 False
-  declareQueues channel [tasksQueueName, tasksResultsQueueName, tasksErrorsQueueName]
+  declareStandardQueues channel
 
-  responseQueue <- atomically $ newTQueue
+  responseQueue <- atomically newTQueue
 
-  consumeMsgs channel tasksQueueName Ack $
+  consumeMsgs channel taskQueueName Ack $
     processMsg responseQueue executor
 
   forever $ do
@@ -37,15 +34,12 @@ startRabbitMQWorker executor = do
 
   closeConnection connection
 
-declareQueues :: Channel -> [T.Text] -> IO ()
-declareQueues channel = mapM_ (\n -> declareQueue channel newQueue{queueName = n})
-
 processResponse :: Channel -> RabbitResponseFor -> IO ()
 processResponse channel (Right result, env) = do
-    publishMsg channel "" tasksResultsQueueName newMsg {msgBody = result}
+    publishMsg channel "" taskResultQueueName newMsg {msgBody = result}
     ackEnv env
 processResponse channel (Left task, env) = do
-    publishMsg channel "" tasksErrorsQueueName newMsg {msgBody = task}
+    publishMsg channel "" taskErrorQueueName newMsg {msgBody = task}
     rejectEnv env False
 
 processMsg :: TQueue RabbitResponseFor -> (RawTask -> IO RawTaskResult) -> RabbitMsg -> IO ()

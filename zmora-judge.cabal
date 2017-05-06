@@ -21,17 +21,16 @@ library
                      , Jail
                      , RabbitMQ
   build-depends:       base >= 4.7 && < 5
-                     , zeromq4-haskell
                      , amqp
                      , bytestring
                      , data-msgpack
-                     , process
-                     , temporary
-                     , filepath
-                     , transformers
                      , directory
+                     , filepath
                      , lens
+                     , process
                      , stm
+                     , temporary
+                     , transformers
                      , text
                      , zmora-queue
   default-language:    Haskell2010
