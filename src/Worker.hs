@@ -47,4 +47,4 @@ exampleProblemJudge files tests = do
     status <- if out == (T.unpack . output) test
       then return OK
       else return ANS
-    return $ TestResult status 0 0
+    return $ TestResult (testId test) status 0 0
