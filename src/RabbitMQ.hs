@@ -58,11 +58,13 @@ startRabbitMQWorker uri executor = do
   connection <- catch (liftIO $ openConnection'' connOpts) handleConnectEx
   addConnectionClosedLiftedHandler connection handleConnectionClosed
 
-  channel <- liftIO $ openChannel connection
-  addChannelExceptionLiftedHandler channel handleChannelEx
+  channel <- liftIO $ do
+    channel <- openChannel connection
+    qos channel 0 1 False
+    declareStandardQueues channel
+    return channel
 
-  liftIO $ qos channel 0 1 False
-  liftIO $ declareStandardQueues channel
+  addChannelExceptionLiftedHandler channel handleChannelEx
 
   responseQueue <- liftIO $ atomically newTQueue
   _ <- consumeMsgs channel taskQueueName Ack $ processMsg responseQueue executor
@@ -70,6 +72,7 @@ startRabbitMQWorker uri executor = do
   forever $ do
     response <- liftIO $ atomically $ readTQueue responseQueue
     processResponse channel response
+
   where
     handleConnectEx :: MonadLoggerIO m => AMQPException -> m Connection
     handleConnectEx e = logErrorException "AMQP connect failed." e >>= throw
