@@ -1,57 +1,109 @@
-{-# LANGUAGE OverloadedStrings #-}
-module RabbitMQ ( startRabbitMQWorker ) where
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TemplateHaskell       #-}
+
+module RabbitMQ
+  ( startRabbitMQWorker
+  ) where
 
 import           Configuration
 import           Control.Concurrent.STM
-import           Control.Exception
+import           Control.Exception.Lifted
 import           Control.Monad
-import qualified Data.ByteString.Lazy   as B
-import           Data.Maybe             (maybe)
-import           Network.AMQP
+import           Control.Monad.IO.Class
+import           Control.Monad.Logger
+import           Control.Monad.Trans.Control
+import qualified Data.ByteString.Lazy        as B
+import           Data.Maybe                  (maybe)
+import           Data.Monoid                 ((<>))
+import qualified Data.Text                   as T
+import           Network.AMQP                hiding (consumeMsgs)
+import           Network.AMQP.Lifted
 import           Zmora.AMQP
 
 type RabbitMsg = (Message, Envelope)
+
 type RabbitResponseFor = (Either RawTask RawTaskResult, Envelope)
+
 type RawTask = B.ByteString
+
 type RawTaskResult = B.ByteString
 
-startRabbitMQWorker :: Maybe String -> (B.ByteString -> IO B.ByteString) -> IO ()
+addConnectionClosedLiftedHandler
+  :: MonadBaseControl IO m
+  => Connection -> m a -> m ()
+addConnectionClosedLiftedHandler connection action =
+  liftBaseWith $ \runInIO ->
+    addConnectionClosedHandler connection True $ void . runInIO $ action
+
+addChannelExceptionLiftedHandler
+  :: MonadBaseControl IO m
+  => Channel -> (SomeException -> m a) -> m ()
+addChannelExceptionLiftedHandler channel action =
+  liftBaseWith $ \runInIO ->
+    addChannelExceptionHandler channel $ void . runInIO . action
+
+startRabbitMQWorker
+  :: (MonadBaseControl IO m, MonadLoggerIO m)
+  => Maybe String -> (B.ByteString -> IO B.ByteString) -> m ()
 startRabbitMQWorker uri executor = do
-  putStrLn $ "Broker URI: " ++
-    maybe "default"
-          (\u -> show u ++ " (defaults used for missing parameters)")
-          uri
+  $(logInfo) $
+    "Broker URI: " <>
+    maybe
+      "default"
+      (\u -> (T.pack . show) u <> " (defaults used for missing parameters)")
+      uri
   let connOpts = maybe rabbitMQConnectionOpts fromURI uri
-  connection <- openConnection'' connOpts
 
-  channel <- openChannel connection
-  qos channel 0 1 False
-  declareStandardQueues channel
+  connection <- catch (liftIO $ openConnection'' connOpts) handleConnectEx
+  addConnectionClosedLiftedHandler connection handleConnectionClosed
 
-  responseQueue <- atomically newTQueue
+  channel <- liftIO $ openChannel connection
+  addChannelExceptionLiftedHandler channel handleChannelEx
 
-  consumeMsgs channel taskQueueName Ack $
-    processMsg responseQueue executor
+  liftIO $ qos channel 0 1 False
+  liftIO $ declareStandardQueues channel
+
+  responseQueue <- liftIO $ atomically newTQueue
+  _ <- consumeMsgs channel taskQueueName Ack $ processMsg responseQueue executor
 
   forever $ do
-    response <- atomically $ readTQueue responseQueue
+    response <- liftIO $ atomically $ readTQueue responseQueue
     processResponse channel response
+  where
+    handleConnectEx :: MonadLoggerIO m => AMQPException -> m Connection
+    handleConnectEx e = logErrorException "AMQP connect failed." e >>= throw
+    handleChannelEx = logErrorException "Channel closed."
+    handleConnectionClosed = $(logError) "AMQP connection closed."
+    logErrorException msg e = do
+      $(logError) $ msg <> " Exception: " <> (T.pack . displayException) e
+      return e
 
-  closeConnection connection
-
-processResponse :: Channel -> RabbitResponseFor -> IO ()
+processResponse
+  :: (MonadLoggerIO m)
+  => Channel -> RabbitResponseFor -> m ()
 processResponse channel (Right result, env) = do
-    publishMsg channel "" taskResultQueueName newMsg {msgBody = result}
-    ackEnv env
+  $(logInfo) "Task successfully processed"
+  _ <-
+    liftIO $ publishMsg channel "" taskResultQueueName newMsg {msgBody = result}
+  liftIO $ ackEnv env
 processResponse channel (Left task, env) = do
-    publishMsg channel "" taskErrorQueueName newMsg {msgBody = task}
-    rejectEnv env False
+  $(logError) "Task execution failed"
+  _ <- liftIO $ publishMsg channel "" taskErrorQueueName newMsg {msgBody = task}
+  liftIO $ rejectEnv env False
 
-processMsg :: TQueue RabbitResponseFor -> (RawTask -> IO RawTaskResult) -> RabbitMsg -> IO ()
+processMsg
+  :: (MonadLoggerIO m)
+  => TQueue RabbitResponseFor
+  -> (RawTask -> IO RawTaskResult)
+  -> RabbitMsg
+  -> m ()
 processMsg queue executor (msg, env) = do
+  $(logInfo) "Received new message"
   let body = msgBody msg
-  result <- catch (Right <$> executor body) $ \e -> do
-    print (e :: SomeException)
-    return $ Left body
-  atomically $ writeTQueue queue $! (result, env)
-
+  result <-
+    liftIO $
+    catch (Right <$> executor body) $ \e -> do
+      print (e :: SomeException)
+      return $ Left body
+  liftIO $ atomically $ writeTQueue queue $! (result, env)

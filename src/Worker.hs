@@ -1,19 +1,22 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Worker where
 
-import           Control.Monad (forM)
 import           Compiler
-import qualified Data.ByteString.Lazy as B
-import qualified Data.Text as T
+import           Control.Monad               (forM)
+import           Control.Monad.Logger        (MonadLoggerIO)
+import           Control.Monad.Trans.Control (MonadBaseControl)
+import qualified Data.ByteString.Lazy        as B
 import           Data.MessagePack
+import qualified Data.Text                   as T
 import           Jail
 import           RabbitMQ
 import           System.Directory
 import           System.IO.Temp
 import           Zmora.Queue
 
-startWorker :: (Maybe String) -> IO ()
+startWorker :: (MonadLoggerIO m, MonadBaseControl IO m) => Maybe String -> m ()
 startWorker uri = startRabbitMQWorker uri processTask
 
 processTask :: B.ByteString -> IO B.ByteString
