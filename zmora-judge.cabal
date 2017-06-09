@@ -14,6 +14,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
+  ghc-options:         -Wall
   exposed-modules:     Worker
   other-modules:       Models
                      , Configuration
@@ -23,13 +24,13 @@ library
   build-depends:       base >= 4.7 && < 5
                      , amqp
                      , bytestring
-                     , data-msgpack
                      , directory
                      , filepath
                      , lifted-base
                      , monad-control
                      , monad-logger
                      , process
+                     , protobuf
                      , stm
                      , temporary
                      , text

@@ -109,4 +109,4 @@ processMsg queue executor (msg, env) = do
     catch (Right <$> executor body) $ \e -> do
       print (e :: SomeException)
       return $ Left body
-  liftIO $ atomically $ writeTQueue queue $! (result, env)
+  liftIO $ atomically $ writeTQueue queue (result, env)
