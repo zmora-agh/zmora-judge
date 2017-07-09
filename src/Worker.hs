@@ -61,6 +61,6 @@ exampleProblemJudge files tests = do
     return TestResult
       { sourceTestId  = testId test
       , status        = putField . Just $ status
-      , executionTime = putField . Just $ 0
-      , ramUsage      = putField . Just $ 0
+      , executionTime = putField . Just $ 0xcafe -- TODO hardcoded value
+      , ramUsage      = putField . Just $ 0xdead -- TODO hardcoded value
       }
