@@ -1,3 +1,5 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -9,20 +11,30 @@ import           System.Process             (readProcessWithExitCode)
 import           Configuration              (zmoraRunnerPath)
 import           Data.Aeson.Types
 import           Data.Aeson                 (decode)
-import           Data.Maybe
 import           Data.ByteString.Lazy.Char8 (pack)
+import           GHC.Int                    (Int64)
+import           System.Exit
 
 type ProcessOut = (ExitCode, String, String)
 
-class Runnable o where
-  run :: FilePath -> [String] -> String -> o
+class Runnable r o | r -> o where
+  path :: r -> FilePath -> [String] -> FilePath
+  args :: r -> FilePath -> [String] -> [String]
+  run :: (MonadIO m) => r -> FilePath -> [String] -> String -> m o
 
-instance (MonadIO m) => Runnable (m ProcessOut) where
-  run path args input = liftIO $ readProcessWithExitCode path args input
+instance Runnable Program ProcessOut where
+  path _ p _ = p
+  args _ _ a = a
+  run _ p a input = liftIO $ readProcessWithExitCode p a input
+
+data Program = Program
+
+
+data Runner = Runner
 
 data RunnerOutput = RunnerOutput {
-  exitCode :: Int,
-  maxMemory :: Int,
+  exitCode :: Int64,
+  maxMemory :: Int64,
   systemTime :: Float,
   userTime :: Float,
   terminatedNormally :: Bool
@@ -38,12 +50,16 @@ instance FromJSON RunnerOutput where
                  <*> v .: "terminated_normally"
  parseJSON invalid = typeMismatch "RunnerOutput" invalid
 
-instance (MonadIO m) => Runnable (m (String, RunnerOutput)) where
-  run path args input = liftIO $ do
-    (_, out, err) <- readProcessWithExitCode zmoraRunnerPath ([path] ++ args) input
+instance Runnable Runner (String, RunnerOutput) where
+  path _ _ _ = zmoraRunnerPath
+  args _ p a = [p] ++ a
+  run _ p a input = liftIO $ do
+    (ExitSuccess, out, err) <- readProcessWithExitCode p a input
     return $ (out, parseRunnerOutput err)
 
 parseRunnerOutput :: String -> RunnerOutput
-parseRunnerOutput input = fromJust $ decode $ pack input
+parseRunnerOutput input = case decode $ pack input of
+  Just res -> res
+  Nothing -> error $ "Unable to parse runner output \n" ++ input
 
 
