@@ -16,8 +16,8 @@ library
   hs-source-dirs:      src
   ghc-options:         -Wall
   exposed-modules:     Worker
-  other-modules:       Models
                      , Configuration
+  other-modules:       Models
                      , Compiler
                      , Jail
                      , RabbitMQ
