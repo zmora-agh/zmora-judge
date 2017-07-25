@@ -4,7 +4,7 @@ module Configuration
    ( gccPath,
      nsJailPath,
      zmoraRunnerPath,
-     rabbitMQConnectionOpts,
+     defaultRMQConnURI,
      validateConfiguration
    ) where
 
@@ -12,7 +12,6 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Logger
 import           Data.Monoid            ((<>))
 import qualified Data.Text              as T
-import           Network.AMQP
 import           System.Exit
 import           System.IO.Error
 import           System.Process         (readProcessWithExitCode)
@@ -26,9 +25,8 @@ nsJailPath = "/usr/bin/nsjail"
 zmoraRunnerPath :: String
 zmoraRunnerPath = "/usr/bin/zmora_runner"
 
-
-rabbitMQConnectionOpts :: ConnectionOpts
-rabbitMQConnectionOpts = defaultConnectionOpts
+defaultRMQConnURI :: T.Text
+defaultRMQConnURI = "amqp://guest:guest@localhost:5672"
 
 validateConfiguration :: (MonadLoggerIO m) => m ()
 validateConfiguration = do

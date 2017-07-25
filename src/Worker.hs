@@ -1,28 +1,49 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 module Worker where
 
 import           Compiler
-import           Control.Monad               (forM)
-import           Control.Monad.IO.Class
-import           Control.Monad.Logger        (MonadLoggerIO)
+import           Control.Concurrent          (threadDelay)
+import           Control.Exception.Lifted
+import           Control.Monad               (forM, forever)
+import           Control.Monad.Base          (MonadBase, liftBase)
 import           Control.Monad.Trans.Control (MonadBaseControl)
-import qualified Data.ByteString.Lazy        as BL
+import           Control.Monad.Logger        (MonadLogger, MonadLoggerIO,
+                                              logError)
 import qualified Data.ByteString             as BS
+import qualified Data.ByteString.Lazy        as BL
+import           Data.Maybe
+import           Data.Monoid                 ((<>))
+import           Data.ProtocolBuffers
 import qualified Data.Text                   as T
 import           Jail
 import           RabbitMQ
+import qualified Runnable                    as R
 import           System.Directory
 import           System.IO.Temp
-import           Data.ProtocolBuffers
-import           Data.Maybe
-import qualified Runnable                    as R
-
 import           Zmora.Queue
 
-startWorker :: (MonadLoggerIO m, MonadBaseControl IO m) => Maybe String -> m ()
-startWorker uri = startRabbitMQWorker uri processTask
+foreverDelayed :: MonadBase IO m => Int -> m a -> m a
+foreverDelayed seconds action =
+  forever $ action >> (liftBase . threadDelay) (seconds * 1000000)
+
+logWorkerException :: (MonadLogger m, Exception e) => Int -> e -> m ()
+logWorkerException delay e =
+  $(logError) $ "RabbitMQ worker exception: " <> cause <>
+  ". Retrying after " <> (T.pack . show) delay <> "s."
+  where cause = T.pack . show $ e
+
+startWorker :: (MonadLoggerIO m, MonadBaseControl IO m) => T.Text -> m ()
+startWorker uri = foreverDelayed delay $
+  startRabbitMQWorker uri processTask `catches`
+  [
+    Handler (\(e :: AsyncException) -> throw e), -- rethrow UserInterrupt, etc.
+    Handler (\(e :: SomeException) -> logWorkerException delay e)
+  ]
+  where delay = 30
 
 processTask :: BL.ByteString -> IO BL.ByteString
 processTask rawTask = either error process (deserialize rawTask)
