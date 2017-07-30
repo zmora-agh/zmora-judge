@@ -5,6 +5,7 @@ module Worker where
 
 import           Compiler
 import           Control.Monad               (forM)
+import           Control.Monad.IO.Class
 import           Control.Monad.Logger        (MonadLoggerIO)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Data.ByteString.Lazy        as BL
@@ -16,6 +17,7 @@ import           System.Directory
 import           System.IO.Temp
 import           Data.ProtocolBuffers
 import           Data.Maybe
+import qualified Runnable                    as R
 
 import           Zmora.Queue
 
@@ -49,18 +51,18 @@ exampleProblemJudge files tests = do
   saveAll files
 
   let filenames = T.unpack . fromJust . getField . name <$> files
-  compile <- withCompiler (defaultPreset :: GCC) $ compile filenames "a.out"
+  _ <- withCompiler (defaultPreset :: GCC) $ compile filenames "a.out"
 
   --TODO redo interface for running test
   forM tests $ \test -> withJail $ do
     let testInput  = T.unpack . fromJust . getField . input $ test
         testOutput = T.unpack . fromJust . getField . output $ test
 
-    (_, out, _) <- run "./a.out" [] testInput
+    (out, stats) <- run R.Runner "./a.out" [] testInput
     status <- if out == testOutput then return OK else return ANS
     return TestResult
       { sourceTestId  = testId test
       , status        = putField . Just $ status
-      , executionTime = putField . Just $ 0xcafe -- TODO hardcoded value
-      , ramUsage      = putField . Just $ 0xdead -- TODO hardcoded value
+      , executionTime = putField . Just . round $ R.userTime stats
+      , ramUsage      = putField . Just $ R.maxMemory stats
       }

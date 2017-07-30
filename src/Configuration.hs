@@ -3,6 +3,7 @@
 module Configuration
    ( gccPath,
      nsJailPath,
+     zmoraRunnerPath,
      rabbitMQConnectionOpts,
      validateConfiguration
    ) where
@@ -16,10 +17,15 @@ import           System.Exit
 import           System.IO.Error
 import           System.Process         (readProcessWithExitCode)
 
-gccPath :: [Char]
-gccPath = "gcc"
-nsJailPath :: [Char]
-nsJailPath = "nsjail"
+gccPath :: String
+gccPath = "/usr/bin/gcc"
+
+nsJailPath :: String
+nsJailPath = "/usr/bin/nsjail"
+
+zmoraRunnerPath :: String
+zmoraRunnerPath = "/usr/bin/zmora_runner"
+
 
 rabbitMQConnectionOpts :: ConnectionOpts
 rabbitMQConnectionOpts = defaultConnectionOpts
