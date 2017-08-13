@@ -18,7 +18,7 @@ import           Data.Monoid                 ((<>))
 import qualified Data.Text                   as T
 import           Network.AMQP                hiding (consumeMsgs)
 import           Network.AMQP.Lifted
-import           Zmora.AMQP
+import           AMQP
 
 type RabbitMsg = (Message, Envelope)
 

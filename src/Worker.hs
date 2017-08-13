@@ -13,18 +13,19 @@ import           Control.Monad.Base          (MonadBase, liftBase)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Control.Monad.Logger        (MonadLogger, MonadLoggerIO,
                                               logError)
-import qualified Data.ByteString             as BS
-import qualified Data.ByteString.Lazy        as BL
-import           Data.Maybe
+import           Control.Lens                ((^.))
+import qualified Data.ByteString.Lazy        as B
+import           Data.Foldable               (toList)
+import           Data.Maybe                  (fromJust)
 import           Data.Monoid                 ((<>))
-import           Data.ProtocolBuffers
 import qualified Data.Text                   as T
 import           Jail
 import           RabbitMQ
 import qualified Runnable                    as R
 import           System.Directory
 import           System.IO.Temp
-import           Zmora.Queue
+import           Text.ProtocolBuffers        (toString, messageGet, messagePut)
+import qualified QueueModel                  as M
 
 foreverDelayed :: MonadBase IO m => Int -> m a -> m a
 foreverDelayed seconds action =
@@ -45,45 +46,45 @@ startWorker uri = foreverDelayed delay $
   ]
   where delay = 30
 
-processTask :: BL.ByteString -> IO BL.ByteString
-processTask rawTask = either error process (deserialize rawTask)
-  where process task = withSystemTempDirectory "zmora-judge" $ \directory -> do
-          setCurrentDirectory directory
-          testsResults <- exampleProblemJudge taskFiles taskTests
-          let result = TaskResult
-                { resultId       = taskId task
-                , compilationLog = putField . Just $ ""
-                , testResults    = putField testsResults
-                }
-          return $ serialize result
-            where taskFiles = getField . files $ task
-                  taskTests = getField . tests $ task
+processTask :: B.ByteString -> IO B.ByteString
+processTask rawTask =
+  withSystemTempDirectory "zmora-judge" $ \directory -> do
+      setCurrentDirectory directory
+      testsResults <- exampleProblemJudge taskFiles taskTests
+      let result = M.taskResult taskId testsResults
+      return $ messagePut result
+  where
+    task = either error fst (messageGet rawTask)
+    taskId = fromJust $ task ^. M.task_id
+    taskFiles = toList $ task ^. M.files
+    taskTests = toList $ task ^. M.tests
 
-save :: File -> IO ()
-save file = BS.writeFile filename bytes
-  where filename = T.unpack . fromJust . getField . name $ file
-        bytes = fromJust . getField . content $ file
+save :: M.File -> IO ()
+save taskFile = B.writeFile filename bytes
+  where
+    filename = toString . fromJust $ taskFile ^. M.name
+    bytes = fromJust $ taskFile ^. M.content
 
-saveAll :: [File] -> IO ()
+saveAll :: [M.File] -> IO ()
 saveAll = mapM_ save
 
-exampleProblemJudge :: [File] -> [Test] -> IO [TestResult]
+exampleProblemJudge :: [M.File] -> [M.Test] -> IO [M.TestResult]
 exampleProblemJudge files tests = do
   saveAll files
 
-  let filenames = T.unpack . fromJust . getField . name <$> files
+  let filenames = (\file -> toString . fromJust $ file ^. M.name) <$> files
   _ <- withCompiler (defaultPreset :: GCC) $ compile filenames "a.out"
 
   --TODO redo interface for running test
   forM tests $ \test -> withJail $ do
-    let testInput  = T.unpack . fromJust . getField . input $ test
-        testOutput = T.unpack . fromJust . getField . output $ test
+    let testInput  = toString . fromJust $ test ^. M.input
+        testOutput = toString . fromJust $ test ^. M.output
 
     (out, stats) <- run R.Runner "./a.out" [] testInput
-    status <- if out == testOutput then return OK else return ANS
-    return TestResult
-      { sourceTestId  = testId test
-      , status        = putField . Just $ status
-      , executionTime = putField . Just . round $ R.userTime stats
-      , ramUsage      = putField . Just $ R.maxMemory stats
-      }
+
+    status <- if out == testOutput then return M.OK else return M.ANS
+    return $ M.testResult
+      (fromJust $ test ^. M.test_id)
+      status
+      (round . R.userTime $ stats)
+      (R.maxMemory stats)
