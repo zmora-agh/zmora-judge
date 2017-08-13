@@ -18,13 +18,12 @@ library
   exposed-modules:     Worker
                      , Configuration
   other-modules:       AMQP
-                     , Models
                      , Compiler
                      , Jail
+                     , Models
                      , RabbitMQ
                      , Runnable
                      , QueueModel
-                     , QueueModel.Judge
                      , QueueModel.Judge.Task
                      , QueueModel.Judge.Task.File
                      , QueueModel.Judge.Task.Test

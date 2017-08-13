@@ -9,10 +9,10 @@ import           Compiler
 import           Control.Concurrent          (threadDelay)
 import           Control.Exception.Lifted
 import           Control.Monad               (forM, forever)
-import           Control.Monad.Base          (MonadBase, liftBase)
+import           Control.Monad.Base          (liftBase)
 import           Control.Monad.Trans.Control (MonadBaseControl)
-import           Control.Monad.Logger        (MonadLogger, MonadLoggerIO,
-                                              logError)
+import           Control.Monad.Logger        (MonadLoggerIO, logError)
+import           Control.Monad.IO.Class      (liftIO)
 import           Control.Lens                ((^.))
 import qualified Data.ByteString.Lazy        as B
 import           Data.Foldable               (toList)
@@ -22,16 +22,16 @@ import qualified Data.Text                   as T
 import           Jail
 import           RabbitMQ
 import qualified Runnable                    as R
-import           System.Directory
-import           System.IO.Temp
-import           Text.ProtocolBuffers        (toString, messageGet, messagePut)
+import           System.Directory            (setCurrentDirectory)
+import           System.IO.Temp              (withSystemTempDirectory)
+import           Text.ProtocolBuffers        (toString)
 import qualified QueueModel                  as M
 
-foreverDelayed :: MonadBase IO m => Int -> m a -> m a
+foreverDelayed :: MonadBaseControl IO m => Int -> m a -> m a
 foreverDelayed seconds action =
   forever $ action >> (liftBase . threadDelay) (seconds * 1000000)
 
-logWorkerException :: (MonadLogger m, Exception e) => Int -> e -> m ()
+logWorkerException :: (MonadLoggerIO m, Exception e) => Int -> e -> m ()
 logWorkerException delay e =
   $(logError) $ "RabbitMQ worker exception: " <> cause <>
   ". Retrying after " <> (T.pack . show) delay <> "s."
@@ -39,25 +39,22 @@ logWorkerException delay e =
 
 startWorker :: (MonadLoggerIO m, MonadBaseControl IO m) => T.Text -> m ()
 startWorker uri = foreverDelayed delay $
-  startRabbitMQWorker uri processTask `catches`
+  startRabbitMQWorker uri (liftIO . processTask) `catches`
   [
     Handler (\(e :: AsyncException) -> throw e), -- rethrow UserInterrupt, etc.
     Handler (\(e :: SomeException) -> logWorkerException delay e)
   ]
   where delay = 30
 
-processTask :: B.ByteString -> IO B.ByteString
-processTask rawTask =
+processTask :: M.Task -> IO M.TaskResult
+processTask task =
   withSystemTempDirectory "zmora-judge" $ \directory -> do
-      setCurrentDirectory directory
-      testsResults <- exampleProblemJudge taskFiles taskTests
-      let result = M.taskResult taskId testsResults
-      return $ messagePut result
-  where
-    task = either error fst (messageGet rawTask)
-    taskId = fromJust $ task ^. M.task_id
-    taskFiles = toList $ task ^. M.files
-    taskTests = toList $ task ^. M.tests
+    setCurrentDirectory directory
+    testsResults <- exampleProblemJudge taskFiles taskTests
+    let result = M.taskResult (fromJust $ task ^. M.task_id) testsResults
+    return result
+      where taskFiles = toList $ task ^. M.files
+            taskTests = toList $ task ^. M.tests
 
 save :: M.File -> IO ()
 save taskFile = B.writeFile filename bytes

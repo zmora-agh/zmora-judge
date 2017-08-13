@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module QueueModel (
     module QueueModel.Judge.Task
   , module QueueModel.Judge.Task.File
@@ -5,17 +7,21 @@ module QueueModel (
   , module QueueModel.Judge.TaskResult
   , module QueueModel.Judge.TaskResult.Status
   , module QueueModel.Judge.TaskResult.TestResult
+  , DeserializationException
   , task
   , file
   , taskResult
   , testResult
+  , messageGetIO
   ) where
 
-import           Data.Int   (Int64)
-import           Data.Maybe ()
-import           Data.Sequence (fromList)
-import qualified Data.ByteString.Lazy        as B
-import           Text.ProtocolBuffers (fromString)
+import           Control.Exception.Lifted               (Exception, throwIO)
+import           Control.Monad.Base                     (MonadBase)
+import           Data.Int                               (Int64)
+import           Data.Maybe                             ()
+import           Data.Sequence                          (fromList)
+import qualified Data.ByteString.Lazy                   as B
+import           Text.ProtocolBuffers
 
 import           QueueModel.Judge.Task
 import           QueueModel.Judge.Task.File
@@ -32,7 +38,7 @@ task tId tFiles tTests = Task
   (fromList tTests)
 
 file :: String -> B.ByteString -> File
-file fName fContent = File (Just . fromString $ fName) (Just fContent)
+file filename fContent = File (Just . fromString $ filename) (Just fContent)
 
 taskResult :: Int64 -> [TestResult] -> TaskResult
 taskResult tId trResults = TaskResult
@@ -46,4 +52,17 @@ testResult tId tStatus time mem = TestResult
   (Just tStatus)
   (Just time)
   (Just mem)
+
+data DeserializationException = DeserializationException B.ByteString String
+instance Show DeserializationException where
+  show (DeserializationException _ cause) =
+    "deserialization failed: " ++ cause
+instance Exception DeserializationException
+
+messageGetIO :: (Wire a, ReflectDescriptor a, MonadBase IO m) =>
+  B.ByteString -> m a
+messageGetIO rawTask = either
+  (throwIO . DeserializationException rawTask)
+  (return . fst)
+  (messageGet rawTask)
 

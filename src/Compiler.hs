@@ -38,7 +38,7 @@ instance MonadIO m => Compiler GCC m where
     result <- liftIO $ readProcessWithExitCode (gccPath config) args ""
     return $ case result of
       (ExitSuccess, _, _) -> CompilationOK
-      (_, _, error)       -> CompilationError error
+      (_, _, err)       -> CompilationError err
 
   blacklist x = modify $ \(GCC p opt incl) -> GCC p opt (delete x incl)
 
