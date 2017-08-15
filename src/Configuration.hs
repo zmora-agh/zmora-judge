@@ -44,10 +44,10 @@ validateNsJail = validateExecutable nsJailPath ["-h"]
 validateGCC :: (MonadLoggerIO m ) => m ()
 validateGCC = validateExecutable gccPath ["--version"]
 
-verifyExecution :: (MonadLoggerIO m ) => T.Text -> (Either IOError (ExitCode, String, String)) -> m ()
+verifyExecution :: (MonadLoggerIO m ) => T.Text -> Either IOError (ExitCode, String, String) -> m ()
 verifyExecution path (Right (_, stdout, stderr)) =
   $(logInfo) $ "Discovered " <> path <> ". Stdout:\n" <> T.pack stdout <>
     "\nStderr:\n" <> T.pack stderr
 verifyExecution path (Left err) = do
   $(logError) $ "Failed to run " <> path <> ".\n Error:" <> (T.pack . show) err
-  liftIO $ exitFailure
+  liftIO exitFailure
