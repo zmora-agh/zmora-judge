@@ -11,7 +11,7 @@ module RabbitMQ
 import           Control.Concurrent          (myThreadId)
 import           Control.Concurrent.STM
 import           Control.Exception.Lifted
-import           Control.Lens                ((^.))
+import           Control.Lens                ((^.), view)
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Logger
@@ -95,19 +95,27 @@ withAuditLog executor task = do
   taskResult <- executor task
 
   let tIdStr = "#" <> (show . fromJust $ task ^. M.task_id)
-  let inputLog = T.pack tIdStr
+  let inputLog = T.pack $ tIdStr <> " " <> showFileIds task
   let outputLog = T.pack $ showTestResults taskResult
 
   $(logDebug) $ "Executor audit: " <> inputLog <> " -> " <> outputLog
 
   return taskResult
   where
+    showFileId = show . fromJust . view M.file_id
+    showFileIds x =
+      "(" <>
+      intercalate
+        ", "
+        (map (\t -> "#" <> showFileId t) (toList $ x ^. M.files)) <>
+      ")"
     showTestResult test =
       "(" <>
       intercalate ", " [
         "#" <> (show . fromJust $ test ^. M.source_test_id)
       ,  show . fromJust $ test ^. M.status
-      ,  (show . fromJust $ test ^. M.execution_time) <> "s"
+      ,  (show . fromJust $ test ^. M.user_time) <> "us"
+      ,  (show . fromJust $ test ^. M.system_time) <> "us"
       ,  (show . fromJust $ test ^. M.ram_usage) <> "B"
       ] <>
       ")"
@@ -137,11 +145,14 @@ processMsg queue executor (msg, env) = do
   enqueue response
 
   where
-    deserialize = M.messageGetIO
+    deserialize = liftIO . M.messageGetIO
     serialize = messagePut
     logException e =
       $(logError) $ "Executor failed: " <> (T.pack . displayException $ e)
-    runExecutor = withAuditLog $ wrapExceptions executor
+    runExecutor input = do
+      $(logInfo) $ "Starting executor on task #" <>
+        (T.pack . show . fromJust . view M.task_id) input
+      withAuditLog (wrapExceptions executor) input
     enqueue result =
       liftIO . atomically . writeTQueue queue $ (serialize <$> result, env)
     rawTask = msgBody msg

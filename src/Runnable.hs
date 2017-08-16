@@ -6,7 +6,7 @@
 module Runnable where
 
 import           Control.Monad.IO.Class
-import           System.Exit                (ExitCode)
+import           Control.Exception          (throwIO)
 import           System.Process             (readProcessWithExitCode)
 import           Configuration              (zmoraRunnerPath)
 import           Data.Aeson.Types
@@ -35,8 +35,8 @@ data Runner = Runner
 data RunnerOutput = RunnerOutput {
   exitCode :: Int64,
   maxMemory :: Int64,
-  systemTime :: Float,
-  userTime :: Float,
+  systemTime :: Int64,
+  userTime :: Int64,
   terminatedNormally :: Bool
 } deriving Show
 
@@ -52,10 +52,12 @@ instance FromJSON RunnerOutput where
 
 instance Runnable Runner (String, RunnerOutput) where
   path _ _ _ = zmoraRunnerPath
-  args _ p a = [p] ++ a
+  args _ p a = p : a
   run _ p a input = liftIO $ do
-    (ExitSuccess, out, err) <- readProcessWithExitCode p a input
-    return $ (out, parseRunnerOutput err)
+    (code, out, err) <- readProcessWithExitCode p a input
+    case code of
+      ExitSuccess -> return (out, parseRunnerOutput err)
+      failure -> throwIO failure
 
 parseRunnerOutput :: String -> RunnerOutput
 parseRunnerOutput input = case decode $ pack input of

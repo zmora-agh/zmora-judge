@@ -83,5 +83,6 @@ exampleProblemJudge files tests = do
     return $ M.testResult
       (fromJust $ test ^. M.test_id)
       status
-      (round . R.userTime $ stats)
+      (R.userTime stats)
+      (R.systemTime stats)
       (R.maxMemory stats)

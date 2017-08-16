@@ -1,12 +1,13 @@
 message Task {
     optional int64 task_id = 1;
-    optional string configuration = 2;
-    repeated File files = 3;
-    repeated Test tests = 4;
+    repeated File files = 2;
+    repeated Test tests = 3;
+    // optional string configuration = 4;
 
     message File {
-        optional string name = 1;
-        optional bytes content = 2;
+        optional int64 file_id = 1;
+        optional string name = 2;
+        optional bytes content = 3;
     }
 
     message Test {
@@ -20,14 +21,15 @@ message Task {
 
 message TaskResult {
     optional int64 result_id = 1;
-    optional string compilation_log = 2;
-    repeated TestResult tests_results = 3;
+    repeated TestResult tests_results = 2;
+    // optional string compilation_log = 3;
 
     message TestResult {
         optional int64 source_test_id = 1;
         optional Status status = 2;
-        optional int64 execution_time = 3;
-        optional int64 ram_usage = 4;
+        optional int64 user_time = 3;
+        optional int64 system_time = 4;
+        optional int64 ram_usage = 5;
     }
 
     enum Status {

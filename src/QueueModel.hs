@@ -33,25 +33,29 @@ import           QueueModel.Judge.TaskResult.TestResult
 task :: Int64 -> [File] -> [Test] -> Task
 task tId tFiles tTests = Task
   (Just tId)
-  Nothing
   (fromList tFiles)
   (fromList tTests)
 
-file :: String -> B.ByteString -> File
-file filename fContent = File (Just . fromString $ filename) (Just fContent)
+file :: Int64 -> String -> B.ByteString -> File
+file fileId filename fContent =
+  File
+    (Just fileId)
+    (Just . fromString $ filename)
+    (Just fContent)
 
 taskResult :: Int64 -> [TestResult] -> TaskResult
 taskResult tId trResults = TaskResult
   (Just tId)
-  Nothing
   (fromList trResults)
 
-testResult :: Int64 -> Status -> Int64 -> Int64 -> TestResult
-testResult tId tStatus time mem = TestResult
-  (Just tId)
-  (Just tStatus)
-  (Just time)
-  (Just mem)
+testResult :: Int64 -> Status -> Int64 -> Int64 -> Int64 -> TestResult
+testResult tId tStatus uTime sTime mem =
+  TestResult
+    (Just tId)
+    (Just tStatus)
+    (Just uTime)
+    (Just sTime)
+    (Just mem)
 
 data DeserializationException = DeserializationException B.ByteString String
 instance Show DeserializationException where
