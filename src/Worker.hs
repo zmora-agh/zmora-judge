@@ -19,6 +19,7 @@ import           Data.Foldable               (toList)
 import           Data.Maybe                  (fromJust)
 import           Data.Monoid                 ((<>))
 import qualified Data.Text                   as T
+import           GHC.Int                     (Int64)
 import           Jail
 import           RabbitMQ
 import qualified Runnable                    as R
@@ -76,13 +77,22 @@ exampleProblemJudge files tests = do
   forM tests $ \test -> withJail $ do
     let testInput  = toString . fromJust $ test ^. M.input
         testOutput = toString . fromJust $ test ^. M.output
+        testCpuLimit = fromJust $ test ^. M.time_limit
+        testMemLimit = fromJust $ test ^. M.ram_limit
 
     (out, stats) <- run R.Runner "./a.out" [] testInput
 
-    status <- if out == testOutput then return M.OK else return M.ANS
+    let status = getStatus stats (out == testOutput) testMemLimit testCpuLimit
     return $ M.testResult
       (fromJust $ test ^. M.test_id)
       status
       (R.userTime stats)
       (R.systemTime stats)
       (R.maxMemory stats)
+
+getStatus :: R.RunnerOutput -> Bool -> Int64 -> Int64 -> M.Status
+getStatus (R.RunnerOutput _ _ _ _ False) _ _ _ = M.RTE
+getStatus (R.RunnerOutput _ _ _ _ _) False _ _ = M.ANS
+getStatus (R.RunnerOutput _ mem _ _ _) _ memLimit _ | mem > memLimit = M.MEM
+getStatus (R.RunnerOutput _ _ _ cpu _) _ _ cpuLimit | cpu > cpuLimit = M.TLE
+getStatus (R.RunnerOutput _ _ _ _ _) True _ _ = M.OK
