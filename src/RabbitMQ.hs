@@ -116,7 +116,7 @@ withAuditLog executor task = do
       ,  show . fromJust $ test ^. M.status
       ,  (show . fromJust $ test ^. M.user_time) <> "us"
       ,  (show . fromJust $ test ^. M.system_time) <> "us"
-      ,  (show . fromJust $ test ^. M.ram_usage) <> "B"
+      ,  (show . fromJust $ test ^. M.ram_usage) <> "kB"
       ] <>
       ")"
     showTestResults x =
