@@ -3,13 +3,13 @@ module Main where
 import           Configuration               (validateConfiguration,
                                               defaultRMQConnURI)
 import           Control.Monad.IO.Class
-import           Control.Monad.Logger.Syslog (runSyslogLoggingT)
+import           Control.Monad.Logger
 import           Data.Text                   as T
 import           System.Environment          (getArgs)
 import           Worker
 
 main :: IO ()
-main = runSyslogLoggingT $ do
+main = runStderrLoggingT $ do
   validateConfiguration
   args <- liftIO getArgs
   case args of
