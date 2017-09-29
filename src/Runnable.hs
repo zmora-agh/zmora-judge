@@ -29,17 +29,18 @@ instance Runnable Program ProcessOut where
 
 data Program = Program
 
-
-data Runner = Runner
+newtype Runner = Runner {
+  timeoutSecs :: Maybe Int
+}
 
 data RunnerOutput = RunnerOutput {
   exitCode :: Int64,
   maxMemory :: Int64,
   systemTime :: Int64,
   userTime :: Int64,
-  terminatedNormally :: Bool
+  terminatedNormally :: Bool,
+  timeouted :: Bool
 } deriving Show
-
 
 instance FromJSON RunnerOutput where
  parseJSON (Object v) =
@@ -48,11 +49,13 @@ instance FromJSON RunnerOutput where
                  <*> v .: "system_time"
                  <*> v .: "user_time"
                  <*> v .: "terminated_normally"
+                 <*> v .: "timeouted"
  parseJSON invalid = typeMismatch "RunnerOutput" invalid
 
 instance Runnable Runner (String, RunnerOutput) where
   path _ _ _ = zmoraRunnerPath
-  args _ p a = p : a
+  args (Runner (Just timeout)) p a = ["--timeout", show timeout] ++ [p] ++ a
+  args (Runner Nothing) p a = p : a
   run _ p a input = liftIO $ do
     (code, out, err) <- readProcessWithExitCode p a input
     case code of

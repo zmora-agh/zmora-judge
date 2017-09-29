@@ -4,6 +4,7 @@ module Configuration
    ( gccPath,
      nsJailPath,
      zmoraRunnerPath,
+     executionTimeoutMult,
      defaultRMQConnURI,
      validateConfiguration
    ) where
@@ -24,6 +25,12 @@ nsJailPath = "/usr/bin/nsjail"
 
 zmoraRunnerPath :: String
 zmoraRunnerPath = "/usr/bin/zmora_runner"
+
+-- Runner timeout termination factor for single test execution
+-- Example: if test has CPU time limit set to 1s, forced termination will happen
+-- after 1s*5=5s (when executionTimeoutMult is set to 5).
+executionTimeoutMult :: Int
+executionTimeoutMult = 5
 
 defaultRMQConnURI :: T.Text
 defaultRMQConnURI = "amqp://guest:guest@localhost:5672"
