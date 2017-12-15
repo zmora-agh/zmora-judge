@@ -1,0 +1,21 @@
+node {
+	def app
+	stage('Prepare') {
+		dir ('nsjail') {
+			git url: 'https://github.com/google/nsjail.git'
+			sh 'git submodule update --init --recursive'
+		}
+		checkout scm
+	}
+	stage('Build') {
+		def built = build(job: '/Zmora/zmora-runner/master', wait: true, propagate: true)
+		copyArtifacts(projectName: '/Zmora/zmora-runner/master', target: 'zmora-runner', selector: specific("${built.number}"))
+		sh 'stack setup && stack build && stack install --local-bin-path ./bin'
+		app = docker.build("zmora-judge")
+	}
+	stage('Publish') {
+		docker.withRegistry('http://localhost:5000') {
+			app.push("${env.BRANCH_NAME.replaceAll('/','_')}")
+		}
+	}
+}
